@@ -4,19 +4,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Base Like Game</title>
-    <!-- Подключаем Telegram SDK -->
+    
+    <!-- Firebase SDK (v8 compat) -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+    <!-- Telegram SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     
-    <!-- Библиотеки для кошельков (Web3Modal / AppKit) -->
+    <!-- Библиотеки кошельков (AppKit) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/index.umd.min.js"></script>
     <script type="module">
         import { createWeb3Modal, defaultWagmiConfig } from 'https://esm.sh/@web3modal/wagmi'
         import { mainnet, base } from 'https://esm.sh/@wagmi/core/chains'
-        import { reconnect, watchAccount, getAccount, disconnect } from 'https://esm.sh/@wagmi/core'
+        import { reconnect, watchAccount, getAccount } from 'https://esm.sh/@wagmi/core'
 
-        // --- ТВОЙ ОБНОВЛЕННЫЙ PROJECT ID ---
         const projectId = '353fba8f0fe5aa0112595912f7ade9b4';
-
         const metadata = {
             name: 'Base Like',
             description: 'Basil Farmer Game',
@@ -26,25 +30,16 @@
 
         const chains = [base, mainnet]
         const config = defaultWagmiConfig({ chains, projectId, metadata })
-        
-        const modal = createWeb3Modal({ 
-            wagmiConfig: config, 
-            projectId, 
-            chains,
-            themeMode: 'light',
-            enableAnalytics: false
-        })
+        const modal = createWeb3Modal({ wagmiConfig: config, projectId, chains, themeMode: 'light', enableAnalytics: false })
 
         reconnect(config);
-
         window.openConnectModal = () => modal.open();
         window.watchWalletAccount = watchAccount;
         window.getWalletAccount = getAccount;
-        window.disconnectWallet = () => disconnect(config);
         window.configWagmi = config;
     </script>
 
-    <!-- React & Tailwind -->
+    <!-- React, Tailwind & Lucide -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -59,7 +54,6 @@
         .animate-leaf-float { animation: leaf-float 0.8s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards; }
         .scale-in-center { animation: scale-in-center 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
         @keyframes scale-in-center { 0% { transform: scale(0); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
-        
         * { -webkit-tap-highlight-color: transparent; user-select: none; }
         body { touch-action: manipulation; }
     </style>
@@ -70,107 +64,119 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
 
+        // --- ТВОИ ПЕРСОНАЛЬНЫЕ КЛЮЧИ FIREBASE ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyC6Z4GKCna_zTSaSzZNz1nmzPlRAYFKmUw",
+            authDomain: "baselike-2c62f.firebaseapp.com",
+            projectId: "baselike-2c62f",
+            storageBucket: "baselike-2c62f.firebasestorage.app",
+            messagingSenderId: "139844632636",
+            appId: "1:139844632636:web:7e98c8bfbfcaf6f91fc339",
+            measurementId: "G-YHRKG63SQ7"
+        };
+
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const auth = firebase.auth();
+        const appId = 'basil-live-final-v5';
+
         const Icon = ({ name, size = 24, className = "", color = "currentColor", strokeWidth = 2 }) => {
           const icon = lucide.icons[name.toLowerCase().replace(/ /g, '-')];
           if (!icon) return null;
           return (
-            <span 
-              className={`inline-flex items-center justify-center ${className}`}
-              style={{ width: size, height: size, color: color }}
-              dangerouslySetInnerHTML={{ 
-                __html: icon.toSvg({ width: size, height: size, 'stroke-width': strokeWidth, stroke: 'currentColor', fill: 'none' }) 
-              }}
-            />
+            <span className={`inline-flex items-center justify-center ${className}`} style={{ width: size, height: size, color: color }} dangerouslySetInnerHTML={{ __html: icon.toSvg({ width: size, height: size, 'stroke-width': strokeWidth, stroke: 'currentColor', fill: 'none' }) }} />
           );
         };
 
-        const BasilImage = ({ onClick, isLocked, isGardenerActive }) => (
-          <div className="relative mx-auto w-[340px] h-[340px] flex items-center justify-center mt-2">
-            <div className={`absolute inset-0 rounded-full blur-[110px] transition-all duration-1000 ${!isLocked ? 'bg-green-400/40' : 'bg-blue-400/20'}`}></div>
-            <img 
-              src="basil.png" 
-              alt="Basil"
-              onClick={onClick}
-              className={`relative z-10 w-[310px] h-[310px] object-contain transition-all duration-150 active:scale-90
-                ${!isLocked && !isGardenerActive ? 'cursor-pointer hover:scale-105' : 'grayscale-[0.2] opacity-70'}`}
-              onError={(e) => {
-                e.target.src = 'https://cdn-icons-png.flaticon.com/512/888/888063.png'; 
-              }}
-            />
-            {isLocked && !isGardenerActive && (
-                <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
-                    <div className="bg-white/50 backdrop-blur-xl p-6 rounded-full shadow-2xl border border-white/50">
-                        <Icon name="clock" size={54} className="text-blue-600 animate-pulse" />
-                    </div>
-                </div>
-            )}
-            {isGardenerActive && (
-                <div className="absolute top-4 right-4 z-30 bg-blue-600 text-white p-4 rounded-full border-4 border-white shadow-xl animate-bounce">
-                    <Icon name="bot" size={28} />
-                </div>
-            )}
-          </div>
-        );
-
         const App = () => {
-          const [tgUser, setTgUser] = useState(null);
-          const [walletAddress, setWalletAddress] = useState(null);
-
-          useEffect(() => {
-            if (window.Telegram && window.Telegram.WebApp) {
-              const webapp = window.Telegram.WebApp;
-              webapp.ready();
-              webapp.expand();
-              setTgUser(webapp.initDataUnsafe?.user);
-            }
-            
-            const interval = setInterval(() => {
-                if (window.watchWalletAccount && window.configWagmi) {
-                    clearInterval(interval);
-                    window.watchWalletAccount(window.configWagmi, { 
-                        onChange(account) { setWalletAddress(account.address || null); } 
-                    });
-                    const initialAccount = window.getWalletAccount(window.configWagmi);
-                    if (initialAccount?.address) setWalletAddress(initialAccount.address);
-                }
-            }, 500);
-            return () => clearInterval(interval);
-          }, []);
-
           const [points, setPoints] = useState(() => Number(localStorage.getItem('basil_points')) || 0);
           const [dailyRate, setDailyRate] = useState(() => Number(localStorage.getItem('basil_daily_rate')) || 1);
           const [autoWaterLevel, setAutoWaterLevel] = useState(() => Number(localStorage.getItem('basil_water_lvl')) || 0);
           const [isSupporter, setIsSupporter] = useState(() => localStorage.getItem('basil_is_supporter') === 'true');
           const [isKing, setIsKing] = useState(() => localStorage.getItem('basil_is_king') === 'true');
           const [multiplier, setMultiplier] = useState(() => Number(localStorage.getItem('basil_multiplier')) || 1);
+          
           const [resetCount, setResetCount] = useState(() => Number(localStorage.getItem('basil_reset_count')) || 0);
           const [lastResetDay, setLastResetDay] = useState(() => localStorage.getItem('basil_last_reset_day') || "");
           const [elixirExpire, setElixirExpire] = useState(() => Number(localStorage.getItem('basil_elixir_exp')) || 0);
           const [gardenerExpire, setGardenerExpire] = useState(() => Number(localStorage.getItem('basil_gardener_exp')) || 0);
           const [lastClickTime, setLastClickTime] = useState(() => Number(localStorage.getItem('basil_last_click')) || 0);
           const [currentTime, setCurrentTime] = useState(Date.now());
+          
           const [activeTab, setActiveTab] = useState('game');
           const [particles, setParticles] = useState([]);
           const [modal, setModal] = useState({ show: false, title: '', message: '', type: 'info', onConfirm: null });
+          const [tgUser, setTgUser] = useState(null);
+          const [walletAddress, setWalletAddress] = useState(null);
+          const [isAuthed, setIsAuthed] = useState(false);
+          const [realLeaders, setRealLeaders] = useState([]);
 
           const isElixirActive = elixirExpire > currentTime;
           const isGardenerActive = gardenerExpire > currentTime;
           const resetsToday = lastResetDay === new Date().toDateString() ? resetCount : 0;
 
-          const leaders = useMemo(() => [
-            { name: "fichtenfuchs", points: 1540200, reward: "75 USDC", isKing: true },
-            { name: "crypto_king", points: 1200500, reward: "40 USDC", isKing: true },
-            { name: "base_master", points: 980000, reward: "25 USDC", isKing: false },
-            { name: tgUser?.first_name || "Игрок", points: Math.floor(points), reward: "5 USDC", isKing: isKing, isVip: isSupporter },
-          ], [points, isKing, isSupporter, tgUser]);
+          // Инициализация
+          useEffect(() => {
+            const init = async () => {
+              try { await auth.signInAnonymously(); setIsAuthed(true); } catch (e) { console.error(e); }
+            };
+            init();
+
+            if (window.Telegram && window.Telegram.WebApp) {
+              const webapp = window.Telegram.WebApp;
+              webapp.ready();
+              webapp.expand();
+              setTgUser(webapp.initDataUnsafe?.user);
+            }
+          }, []);
+
+          // Облачный Топ
+          useEffect(() => {
+            if (!isAuthed) return;
+            const leaderboardRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('leaderboard');
+
+            const unsubscribe = leaderboardRef.onSnapshot((snapshot) => {
+              const players = [];
+              snapshot.forEach(doc => players.push(doc.data()));
+              setRealLeaders(players.sort((a, b) => b.points - a.points));
+            });
+
+            const syncMyData = async () => {
+              if (tgUser) {
+                await leaderboardRef.doc(tgUser.id.toString()).set({
+                  id: tgUser.id,
+                  name: tgUser.first_name || "Фермер",
+                  points: Math.floor(points),
+                  isKing: isKing,
+                  isVip: isSupporter,
+                  address: walletAddress || ""
+                }, { merge: true });
+              }
+            };
+
+            const interval = setInterval(syncMyData, 20000);
+            if (activeTab === 'leaderboard') syncMyData();
+
+            const wInterval = setInterval(() => {
+              if (window.watchWalletAccount && window.configWagmi) {
+                clearInterval(wInterval);
+                window.watchWalletAccount(window.configWagmi, { onChange: (a) => setWalletAddress(a.address || null) });
+                const current = window.getWalletAccount(window.configWagmi);
+                if (current?.address) setWalletAddress(current.address);
+              }
+            }, 1000);
+
+            return () => { unsubscribe(); clearInterval(interval); clearInterval(wInterval); };
+          }, [isAuthed, tgUser, points, isKing, isSupporter, walletAddress, activeTab]);
+
+          // Таймеры и доход
+          const timeLeftMs = Math.max(0, (lastClickTime + 86400000) - currentTime);
+          const canHarvest = timeLeftMs === 0;
 
           useEffect(() => {
             const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
             return () => clearInterval(timer);
           }, []);
-
-          const timeLeftMs = Math.max(0, (lastClickTime + 86400000) - currentTime);
-          const canHarvest = timeLeftMs === 0;
 
           useEffect(() => {
             const totalDaily = (dailyRate + (autoWaterLevel * 2)) * multiplier * (isKing ? 1.5 : 1) * (isElixirActive ? 2 : 1);
@@ -183,25 +189,18 @@
           }, [currentTime, isGardenerActive, canHarvest]);
 
           useEffect(() => {
-            const data = { basil_points: points, basil_daily_rate: dailyRate, basil_water_lvl: autoWaterLevel, basil_last_click: lastClickTime, basil_is_supporter: isSupporter, basil_is_king: isKing, basil_multiplier: multiplier, basil_elixir_exp: elixirExpire, basil_gardener_exp: gardenerExpire, basil_reset_count: resetCount, basil_last_reset_day: lastResetDay };
+            const data = { basil_points: points, basil_daily_rate: dailyRate, basil_water_lvl: autoWaterLevel, basil_last_click: lastClickTime, basil_is_supporter: isSupporter, basil_is_king: isKing, basil_multiplier: multiplier, basil_elixir_exp: elixirExpire, basil_gardener_exp: gardenerExpire };
             Object.entries(data).forEach(([k, v]) => localStorage.setItem(k, v.toString()));
-          }, [points, dailyRate, autoWaterLevel, lastClickTime, isSupporter, isKing, multiplier, elixirExpire, gardenerExpire, resetCount, lastResetDay]);
+          }, [points, dailyRate, autoWaterLevel, lastClickTime, isSupporter, isKing, multiplier, elixirExpire, gardenerExpire]);
 
           const performHarvest = (isManual, e = null) => {
             const reward = (dailyRate + (autoWaterLevel * 2)) * multiplier * (isKing ? 1.5 : 1) * (isElixirActive ? 2 : 1);
             setPoints(p => p + reward);
             setLastClickTime(Date.now());
-            const x = e?.clientX || window.innerWidth / 2;
-            const y = e?.clientY || window.innerHeight / 2;
             const id = Date.now();
-            setParticles(prev => [...prev, { id, x, y, angle: Math.random() * 360 }]);
+            setParticles(prev => [...prev, { id, x: e?.clientX || window.innerWidth/2, y: e?.clientY || window.innerHeight/2, angle: Math.random()*360 }]);
             setTimeout(() => setParticles(ps => ps.filter(p => p.id !== id)), 800);
             if (isManual && window.Telegram?.WebApp) window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
-          };
-
-          const handleHarvestManual = (e) => {
-            if (isGardenerActive || !canHarvest) return;
-            performHarvest(true, e);
           };
 
           const handlePurchase = async (type, mode) => {
@@ -209,24 +208,22 @@
               fertilizer: { leaf: 50, donor: 0.5, title: 'Золотое удобрение' },
               elixir: { leaf: 30, donor: 0.2, title: 'Эликсир Скорости' },
               gardener: { leaf: 40, donor: 0.25, title: 'Авто-садовник' },
-              rain: { leaf: 20, donor: 0.15, title: 'Дождь из Базилика' },
-              lootbox: { leaf: 15, donor: 0.05, title: 'Пакет семян' },
               king: { leaf: null, donor: 1.0, title: 'Король Фермеров' },
               reset: { donor: 0.3, title: 'Сброс таймера' }
             };
             const item = catalog[type];
             const cost = mode === 'leaf' ? item.leaf : item.donor;
-            if (mode === 'donor' && !walletAddress) return setModal({ show: true, title: 'Wallet!', message: 'Сначала подключите кошелек.', type: 'info' });
+            if (mode === 'donor' && !walletAddress) return setModal({ show: true, title: 'Wallet!', message: 'Сначала подключи кошелек.', type: 'info' });
             if (mode === 'leaf' && (item.leaf === null || points < cost)) return setModal({ show: true, title: 'Мало 🌿', message: 'Нужно больше листьев!', type: 'info' });
 
-            setModal({ show: true, title: 'Покупка', message: `Купить "${item.title}" за ${cost} ${mode === 'leaf' ? '🌿' : 'USDC'}?`, type: 'confirm', onConfirm: () => {
+            setModal({ show: true, title: 'Покупка', message: `Купить "${item.title}"?`, type: 'confirm', onConfirm: () => {
               if (mode === 'leaf') setPoints(p => p - cost);
               if (mode === 'donor') setIsSupporter(true);
               if (type === 'fertilizer') setDailyRate(r => r + 1);
               if (type === 'elixir') setElixirExpire(Date.now() + (3 * 86400000));
               if (type === 'gardener') setGardenerExpire(Date.now() + (7 * 86400000));
               if (type === 'king') setIsKing(true);
-              if (type === 'reset') { setLastClickTime(0); setResetCount(r => r + 1); setLastResetDay(new Date().toDateString()); }
+              if (type === 'reset') setLastClickTime(0);
               setModal({ show: false });
             }});
           };
@@ -234,8 +231,8 @@
           return (
             <div className="min-h-screen flex flex-col items-center select-none font-sans overflow-hidden text-slate-900 bg-[#F9FBF9]">
               {modal.show && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                  <div className="bg-white rounded-[40px] p-8 w-full max-w-xs text-center scale-in-center shadow-2xl border-4 border-slate-50">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm text-center">
+                  <div className="bg-white rounded-[40px] p-8 w-full max-w-xs shadow-2xl scale-in-center border-4 border-slate-50">
                     <h3 className="font-black text-xl mb-3 tracking-tighter uppercase">{modal.title}</h3>
                     <p className="text-sm text-slate-500 mb-8 leading-snug">{modal.message}</p>
                     <div className="flex flex-col gap-3">
@@ -248,55 +245,48 @@
                 </div>
               )}
 
-              <header className="w-full max-w-md bg-white border-b-2 border-slate-50 p-5 flex justify-between items-center sticky top-0 z-50">
+              <header className="w-full max-w-md bg-white border-b-2 p-5 flex justify-between items-center sticky top-0 z-50">
                 <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-1 font-black text-2xl shrink-0 tracking-tighter">
+                    <div className="flex items-center gap-1 font-black text-2xl tracking-tighter shrink-0">
                         <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm shadow-md">B</div>
                         <span>Base Like</span>
                     </div>
-                    <button 
-                        onClick={() => window.openConnectModal()}
-                        className={`text-sm font-black px-6 py-3 rounded-2xl border-b-4 active:border-b-0 active:translate-y-1 transition-all whitespace-nowrap shadow-md ${
-                            walletAddress ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-blue-600 text-white border-blue-800'
-                        }`}
-                    >
+                    <button onClick={() => window.openConnectModal()} className={`text-[10px] font-black px-4 py-2.5 rounded-2xl border-b-4 active:border-b-0 active:translate-y-1 transition-all shadow-md ${walletAddress ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-blue-600 text-white border-blue-800'}`}>
                         {walletAddress ? `${walletAddress.substring(0,4)}...${walletAddress.substring(38)}` : 'WALLET'}
                     </button>
                 </div>
-                <div className="bg-green-100 px-4 py-2 rounded-2xl border border-green-200 flex items-center gap-2 shrink-0 shadow-sm">
-                   <Icon name="leaf" size={20} className="text-green-600" />
-                   <span className="text-lg font-black text-green-800">{Math.floor(points)}</span>
+                <div className="bg-green-100 px-3 py-2 rounded-2xl border border-green-200 flex items-center gap-2">
+                   <Icon name="leaf" size={18} className="text-green-600" />
+                   <span className="text-base font-black text-green-800">{Math.floor(points)}</span>
                 </div>
               </header>
 
-              <main className="flex-1 w-full max-w-md flex flex-col overflow-y-auto pb-24 text-center">
+              <main className="flex-1 w-full max-w-md flex flex-col overflow-y-auto pb-24 text-center bg-white">
                 {activeTab === 'game' && (
                   <div className="pt-10 px-6 flex flex-col items-center">
                     <div className="relative mb-6">
-                      {isKing && <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-yellow-400 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase shadow-sm tracking-widest border-2 border-white">King</div>}
+                      {isKing && <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-yellow-400 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase shadow-sm border-2 border-white">King</div>}
                       <div className="text-8xl font-black tracking-tighter text-slate-900 drop-shadow-sm">{Math.floor(points).toLocaleString()}</div>
                     </div>
                     
-                    <BasilImage 
-                        onClick={handleHarvestManual} 
-                        isLocked={!canHarvest} 
-                        isGardenerActive={isGardenerActive} 
-                    />
+                    <div className="relative mx-auto w-[340px] h-[340px] flex items-center justify-center mt-2">
+                        <div className={`absolute inset-0 rounded-full blur-[110px] transition-all duration-1000 ${canHarvest ? 'bg-green-400/40' : 'bg-blue-400/20'}`}></div>
+                        <img src="basil.png" alt="Basil" onClick={() => performHarvest(true)} className={`relative z-10 w-[310px] h-[310px] object-contain transition-all duration-150 active:scale-90 ${canHarvest && !isGardenerActive ? 'cursor-pointer hover:scale-105' : 'grayscale-[0.2] opacity-70'}`} onError={(e) => e.target.src = 'https://cdn-icons-png.flaticon.com/512/888/888063.png'} />
+                        {isGardenerActive && <div className="absolute top-4 right-4 z-30 bg-blue-600 text-white p-4 rounded-full border-4 border-white shadow-xl animate-bounce"><Icon name="bot" size={28} /></div>}
+                    </div>
 
                     {canHarvest && !isGardenerActive ? (
-                      <button onClick={handleHarvestManual} className="w-full max-w-[260px] bg-green-500 text-white font-black py-7 rounded-[40px] shadow-[0_15px_40px_rgba(34,197,94,0.3)] animate-bounce text-xl tracking-widest uppercase mt-8">СОБРАТЬ 🌿</button>
+                      <button onClick={(e) => performHarvest(true, e)} className="mt-8 w-full max-w-[260px] bg-green-500 text-white font-black py-7 rounded-[40px] shadow-xl animate-bounce text-xl uppercase tracking-widest">СОБРАТЬ 🌿</button>
                     ) : (
-                      <div className="space-y-6 w-full max-w-[280px] mt-8">
-                          <div className="bg-white border-2 border-slate-100 p-6 rounded-[40px] shadow-sm">
-                              <p className="text-[12px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">
-                                {isGardenerActive ? 'Садовник на смене' : 'Базилик зреет'}
-                              </p>
+                      <div className="space-y-6 w-full max-w-[280px] mt-8 flex flex-col items-center">
+                          <div className="bg-white border-2 border-slate-100 p-6 rounded-[40px] shadow-sm w-full">
+                              <p className="text-[12px] font-black text-slate-400 uppercase tracking-widest mb-2 font-black font-sans">{isGardenerActive ? 'Садовник на смене' : 'Базилик зреет'}</p>
                               <div className="text-5xl font-mono font-black text-blue-600 tracking-tight">
                                   {Math.floor(timeLeftMs/3600000)}:{Math.floor((timeLeftMs%3600000)/60000).toString().padStart(2,'0')}:{Math.floor((timeLeftMs%60000)/1000).toString().padStart(2,'0')}
                               </div>
                           </div>
-                          <button onClick={() => handlePurchase('reset', 'donor')} disabled={resetsToday >= 2} className={`w-full py-5 rounded-[28px] border-b-4 font-black flex items-center justify-center gap-3 transition-all uppercase text-xs tracking-widest ${resetsToday < 2 ? 'bg-blue-50 text-blue-600 border-blue-200 active:border-b-0 active:translate-y-1' : 'bg-slate-50 text-slate-300 border-slate-200'}`}>
-                              <Icon name="zap" size={18} className={resetsToday < 2 ? "text-blue-600" : ""} /> Сброс {resetsToday}/2 ($0.30)
+                          <button onClick={() => handlePurchase('reset', 'donor')} className="w-full py-5 rounded-[28px] border-b-4 font-black flex items-center justify-center gap-3 transition-all uppercase text-xs tracking-widest bg-blue-50 text-blue-600 border-blue-200 active:translate-y-1">
+                              <Icon name="zap" size={18} /> Сброс таймера ($0.30)
                           </button>
                       </div>
                     )}
@@ -305,15 +295,8 @@
 
                 {activeTab === 'shop' && (
                   <div className="p-6 space-y-5 text-left">
-                    <h2 className="text-3xl font-black mb-6 flex items-center gap-3 tracking-tighter uppercase"><Icon name="shopping-cart" size={28} className="text-red-500" /> Маркет</h2>
-                    {!walletAddress && (
-                        <button onClick={() => window.openConnectModal()} className="w-full bg-blue-600 p-6 rounded-[36px] text-white mb-6 flex items-center justify-between shadow-xl animate-pulse">
-                            <div className="text-sm font-black leading-tight uppercase font-black">Подключи кошелек<br/>для оплаты</div>
-                            <div className="bg-white text-blue-600 px-5 py-2.5 rounded-2xl font-black text-xs">CONNECT</div>
-                        </button>
-                    )}
+                    <h2 className="text-3xl font-black mb-6 flex items-center gap-3 tracking-tighter uppercase text-red-500 font-sans"><Icon name="shopping-cart" size={28} /> Маркет</h2>
                     {[
-                        { id: 'lootbox', icon: "box", color: "#f97316", t: 'Пакет семян', d: 'Случайный приз внутри.', l: 15, c: 0.05 },
                         { id: 'fertilizer', icon: "star", color: "#eab308", t: 'Золотое удобрение', d: '+1 🌿/сут навсегда.', l: 50, c: 0.5 },
                         { id: 'elixir', icon: "zap", color: "#a855f7", t: 'Эликсир Скорости', d: 'x2 доход (3 дня).', l: 30, c: 0.2 },
                         { id: 'gardener', icon: "bot", color: "#3b82f6", t: 'Авто-садовник', d: 'Авто-сбор (1 неделя).', l: 40, c: 0.25 }
@@ -321,11 +304,11 @@
                         <div key={i.id} className="bg-white border-2 border-slate-50 p-6 rounded-[40px] flex flex-col gap-5 shadow-sm">
                             <div className="flex items-center gap-5 text-left">
                                 <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center shadow-inner"><Icon name={i.icon} size={32} color={i.color} /></div>
-                                <div><h4 className="font-black text-xl uppercase tracking-tight">{i.t}</h4><p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest">{i.d}</p></div>
+                                <div><h4 className="font-black text-xl uppercase tracking-tighter">{i.t}</h4><p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest">{i.d}</p></div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
-                                <button onClick={() => handlePurchase(i.id, 'leaf')} className="bg-green-50 text-green-700 py-5 rounded-[24px] text-base font-black border-b-4 border-green-200 active:border-b-0 active:translate-y-1">{i.l} 🌿</button>
-                                <button onClick={() => handlePurchase(i.id, 'donor')} className="bg-blue-50 text-blue-700 py-5 rounded-[24px] text-base font-black border-b-4 border-blue-200 active:border-b-0 active:translate-y-1">${i.c.toFixed(2)}</button>
+                                <button onClick={() => handlePurchase(i.id, 'leaf')} className="bg-green-50 text-green-700 py-5 rounded-[24px] text-base font-black border-b-4 border-green-200 active:translate-y-1">{i.l} 🌿</button>
+                                <button onClick={() => handlePurchase(i.id, 'donor')} className="bg-blue-50 text-blue-700 py-5 rounded-[24px] text-base font-black border-b-4 border-blue-200 active:translate-y-1">${i.c.toFixed(2)}</button>
                             </div>
                         </div>
                     ))}
@@ -333,39 +316,50 @@
                 )}
                 
                 {activeTab === 'leaderboard' && (
-                  <div className="p-6 text-left">
+                  <div className="p-6 text-left font-sans">
                     <div className="bg-slate-900 rounded-[48px] p-10 text-white mb-10 relative overflow-hidden shadow-2xl">
-                      <h2 className="text-3xl font-black flex items-center gap-4 relative z-10 uppercase tracking-tighter"><Icon name="trophy" size={36} color="#fbbf24" /> Топ Месяца</h2>
-                      <p className="text-base text-slate-400 mt-3 relative z-10 font-bold tracking-widest uppercase">Приз: 150 USDC за 1 место</p>
-                      <Icon name="sparkles" size={180} className="absolute -right-12 -top-12 text-white/5 rotate-12" />
-                    </div>
-                    <div className="bg-white rounded-[48px] shadow-sm border-2 border-slate-100 overflow-hidden">
-                      {leaders.map((l, i) => (
-                        <div key={i} className={`flex justify-between p-8 border-b border-slate-50 last:border-0 items-center ${l.isKing ? 'bg-yellow-50/40' : ''}`}>
-                           <div className="flex flex-col">
-                             <span className={`font-black text-xl flex items-center gap-3 ${l.isKing ? 'text-yellow-700' : 'text-slate-800'}`}>
-                                {i+1}. {l.name} {l.isKing && <Icon name="crown" size={20} color="#eab308" />}
-                             </span>
-                             <span className="text-xs text-slate-400 font-black uppercase tracking-[0.2em] mt-2">{l.points.toLocaleString()} 🌿</span>
-                           </div>
-                           <span className="font-black text-blue-600 bg-blue-50 px-6 py-3 rounded-[20px] text-sm shadow-inner uppercase tracking-wider">{l.reward}</span>
+                      <h2 className="text-3xl font-black uppercase tracking-tighter flex items-center gap-3"><Icon name="trophy" size={32} color="#fbbf24" /> Глобальный Топ</h2>
+                      <div className="mt-6 flex gap-3">
+                        <div className="bg-white/10 p-4 rounded-3xl flex-1 text-center border border-white/10 backdrop-blur-md">
+                            <p className="text-[10px] text-slate-400 font-black uppercase mb-1 tracking-widest">Игроков</p>
+                            <p className="text-3xl font-black text-blue-400">{realLeaders.length}</p>
                         </div>
-                      ))}
+                        <div className="bg-white/10 p-4 rounded-3xl flex-1 text-center border border-white/5 backdrop-blur-md">
+                            <p className="text-[10px] text-slate-400 font-black uppercase mb-1 tracking-widest font-sans">Приз #1</p>
+                            <p className="text-3xl font-black text-yellow-400">150 $</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-white rounded-[40px] shadow-sm border-2 border-slate-50 overflow-hidden mb-8">
+                      {realLeaders.length > 0 ? realLeaders.map((l, i) => (
+                        <div key={i} className={`flex justify-between p-6 border-b border-slate-50 last:border-0 items-center ${l.id === tgUser?.id ? 'bg-blue-50/50' : (l.isKing ? 'bg-yellow-50/40' : '')}`}>
+                           <div className="flex flex-col">
+                             <div className="flex items-center gap-2">
+                                <span className={`font-black text-xl ${l.isKing ? 'text-yellow-700' : 'text-slate-800'}`}>
+                                    {i+1}. {l.name}
+                                </span>
+                                {l.isKing && <Icon name="crown" size={16} color="#eab308" />}
+                                {l.id === tgUser?.id && <span className="text-[8px] bg-blue-600 text-white px-1.5 rounded uppercase font-black">Ты</span>}
+                             </div>
+                             <span className="text-xs text-slate-500 font-black uppercase tracking-widest mt-1">{Math.floor(l.points).toLocaleString()} 🌿</span>
+                           </div>
+                           <span className="font-black text-blue-600 bg-blue-50 px-5 py-2 rounded-2xl text-xs uppercase tracking-tighter shadow-inner">
+                                {i === 0 ? "🏆 Winner" : "Farmer"}
+                           </span>
+                        </div>
+                      )) : (
+                        <div className="p-20 text-center text-slate-300 font-black uppercase animate-pulse">Загрузка игроков...</div>
+                      )}
                     </div>
                   </div>
                 )}
               </main>
 
-              <nav className="fixed bottom-0 w-full max-w-md bg-white border-t-2 border-slate-50 flex justify-around p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] backdrop-blur-xl z-50">
-                <button onClick={() => setActiveTab('game')} className={`flex flex-col items-center gap-2 transition-all ${activeTab==='game'?'text-blue-600 scale-125':'text-slate-300 hover:text-slate-400'}`}>
-                    <Icon name="leaf" size={32}/><span className="text-[10px] font-black uppercase tracking-widest">Сбор</span>
-                </button>
-                <button onClick={() => setActiveTab('shop')} className={`flex flex-col items-center gap-2 transition-all ${activeTab==='shop'?'text-blue-600 scale-125':'text-slate-300 hover:text-slate-400'}`}>
-                    <Icon name="shopping-cart" size={32}/><span className="text-[10px] font-black uppercase tracking-widest">Маркет</span>
-                </button>
-                <button onClick={() => setActiveTab('leaderboard')} className={`flex flex-col items-center gap-2 transition-all ${activeTab==='leaderboard'?'text-blue-600 scale-125':'text-slate-300 hover:text-slate-400'}`}>
-                    <Icon name="trophy" size={32}/><span className="text-[10px] font-black uppercase tracking-widest">Топ</span>
-                </button>
+              <nav className="fixed bottom-0 w-full max-w-md bg-white border-t-2 p-6 flex justify-around shadow-2xl backdrop-blur-xl z-50">
+                <button onClick={() => setActiveTab('game')} className={`flex flex-col items-center gap-1 transition-all ${activeTab==='game'?'text-blue-600 scale-125 font-black':'text-slate-300'}`}><Icon name="leaf" size={32}/><span className="text-[10px] font-black uppercase tracking-widest">Сбор</span></button>
+                <button onClick={() => setActiveTab('shop')} className={`flex flex-col items-center gap-1 transition-all ${activeTab==='shop'?'text-blue-600 scale-125 font-black':'text-slate-300'}`}><Icon name="shopping-cart" size={32}/><span className="text-[10px] font-black uppercase tracking-widest">Маркет</span></button>
+                <button onClick={() => setActiveTab('leaderboard')} className={`flex flex-col items-center gap-1 transition-all ${activeTab==='leaderboard'?'text-blue-600 scale-125 font-black':'text-slate-300'}`}><Icon name="trophy" size={32}/><span className="text-[10px] font-black uppercase tracking-widest font-sans">Топ</span></button>
               </nav>
 
               {particles.map(p => <div key={p.id} className="fixed pointer-events-none z-[60] text-6xl animate-leaf-float opacity-80" style={{ left: p.x - 30, top: p.y - 30 }}>🌿</div>)}
