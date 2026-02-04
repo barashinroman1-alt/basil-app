@@ -12,9 +12,12 @@
     <script type="module">
         import { createWeb3Modal, defaultWagmiConfig } from 'https://esm.sh/@web3modal/wagmi'
         import { mainnet, base } from 'https://esm.sh/@wagmi/core/chains'
-        import { reconnect, watchAccount, getAccount } from 'https://esm.sh/@wagmi/core'
+        import { reconnect, watchAccount, getAccount, disconnect } from 'https://esm.sh/@wagmi/core'
 
+        // Твой текущий Project ID. 
+        // Если иконки всё еще не грузятся, создай свой на cloud.walletconnect.com и замени этот.
         const projectId = 'c2e0b57e7592476b70a7b4507010f3c5';
+
         const metadata = {
             name: 'Base Like',
             description: 'Basil Farmer Game',
@@ -24,19 +27,21 @@
 
         const chains = [base, mainnet]
         const config = defaultWagmiConfig({ chains, projectId, metadata })
+        
         const modal = createWeb3Modal({ 
             wagmiConfig: config, 
             projectId, 
             chains,
-            themeMode: 'light'
+            themeMode: 'light',
+            enableAnalytics: false
         })
 
-        // Авто-восстановление сессии
         reconnect(config);
 
         window.openConnectModal = () => modal.open();
         window.watchWalletAccount = watchAccount;
         window.getWalletAccount = getAccount;
+        window.disconnectWallet = () => disconnect(config);
         window.configWagmi = config;
     </script>
 
@@ -66,9 +71,6 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
 
-        // --- БЕЛЫЙ СПИСОК (ID TELEGRAM) ---
-        const ALLOWED_USERS = []; 
-
         const Icon = ({ name, size = 24, className = "", color = "currentColor", strokeWidth = 2 }) => {
           const icon = lucide.icons[name.toLowerCase().replace(/ /g, '-')];
           if (!icon) return null;
@@ -83,15 +85,9 @@
           );
         };
 
-        /**
-         * Компонент с твоим изображением базилика (УВЕЛИЧЕННЫЙ РАЗМЕР)
-         */
         const BasilImage = ({ onClick, isLocked, isGardenerActive }) => (
           <div className="relative mx-auto w-[340px] h-[340px] flex items-center justify-center mt-2">
-            {/* Динамическое свечение (тоже увеличено) */}
             <div className={`absolute inset-0 rounded-full blur-[110px] transition-all duration-1000 ${!isLocked ? 'bg-green-400/40' : 'bg-blue-400/20'}`}></div>
-            
-            {/* САМА КАРТИНКА (РАЗМЕР УВЕЛИЧЕН) */}
             <img 
               src="basil.png" 
               alt="Basil"
@@ -99,11 +95,9 @@
               className={`relative z-10 w-[310px] h-[310px] object-contain transition-all duration-150 active:scale-90
                 ${!isLocked && !isGardenerActive ? 'cursor-pointer hover:scale-105' : 'grayscale-[0.2] opacity-70'}`}
               onError={(e) => {
-                e.target.style.display = 'none'; 
+                e.target.src = 'https://cdn-icons-png.flaticon.com/512/888/888063.png'; 
               }}
             />
-            
-            {/* Оверлеи состояний */}
             {isLocked && !isGardenerActive && (
                 <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
                     <div className="bg-white/50 backdrop-blur-xl p-6 rounded-full shadow-2xl border border-white/50">
@@ -121,28 +115,29 @@
 
         const App = () => {
           const [tgUser, setTgUser] = useState(null);
-          const [isAccessGranted, setIsAccessGranted] = useState(true);
           const [walletAddress, setWalletAddress] = useState(null);
 
-          // Инициализация Telegram и Кошелька
           useEffect(() => {
             if (window.Telegram && window.Telegram.WebApp) {
               const webapp = window.Telegram.WebApp;
               webapp.ready();
               webapp.expand();
               setTgUser(webapp.initDataUnsafe?.user);
-              if (ALLOWED_USERS.length > 0 && webapp.initDataUnsafe?.user) {
-                if (!ALLOWED_USERS.includes(webapp.initDataUnsafe.user.id)) setIsAccessGranted(false);
-              }
             }
-            if (window.watchWalletAccount) {
-                window.watchWalletAccount(window.configWagmi, { onChange(account) { setWalletAddress(account.address || null); } });
-                const initialAccount = window.getWalletAccount(window.configWagmi);
-                if (initialAccount?.address) setWalletAddress(initialAccount.address);
-            }
+            
+            const interval = setInterval(() => {
+                if (window.watchWalletAccount && window.configWagmi) {
+                    clearInterval(interval);
+                    window.watchWalletAccount(window.configWagmi, { 
+                        onChange(account) { setWalletAddress(account.address || null); } 
+                    });
+                    const initialAccount = window.getWalletAccount(window.configWagmi);
+                    if (initialAccount?.address) setWalletAddress(initialAccount.address);
+                }
+            }, 500);
+            return () => clearInterval(interval);
           }, []);
 
-          // Состояние игры
           const [points, setPoints] = useState(() => Number(localStorage.getItem('basil_points')) || 0);
           const [dailyRate, setDailyRate] = useState(() => Number(localStorage.getItem('basil_daily_rate')) || 1);
           const [autoWaterLevel, setAutoWaterLevel] = useState(() => Number(localStorage.getItem('basil_water_lvl')) || 0);
@@ -178,19 +173,16 @@
           const timeLeftMs = Math.max(0, (lastClickTime + 86400000) - currentTime);
           const canHarvest = timeLeftMs === 0;
 
-          // Пассивное начисление
           useEffect(() => {
             const totalDaily = (dailyRate + (autoWaterLevel * 2)) * multiplier * (isKing ? 1.5 : 1) * (isElixirActive ? 2 : 1);
             const interval = setInterval(() => setPoints(p => p + (totalDaily / 86400)), 1000);
             return () => clearInterval(interval);
           }, [dailyRate, autoWaterLevel, multiplier, isKing, isElixirActive]);
 
-          // Авто-сбор садовником
           useEffect(() => {
             if (isGardenerActive && canHarvest) performHarvest(false);
           }, [currentTime, isGardenerActive, canHarvest]);
 
-          // Сохранение в память
           useEffect(() => {
             const data = { basil_points: points, basil_daily_rate: dailyRate, basil_water_lvl: autoWaterLevel, basil_last_click: lastClickTime, basil_is_supporter: isSupporter, basil_is_king: isKing, basil_multiplier: multiplier, basil_elixir_exp: elixirExpire, basil_gardener_exp: gardenerExpire, basil_reset_count: resetCount, basil_last_reset_day: lastResetDay };
             Object.entries(data).forEach(([k, v]) => localStorage.setItem(k, v.toString()));
@@ -240,16 +232,6 @@
             }});
           };
 
-          if (!isAccessGranted) {
-            return (
-              <div className="min-h-screen flex flex-col items-center justify-center p-10 text-center bg-slate-900 text-white font-black uppercase">
-                <Icon name="lock" size={64} className="mb-4 text-yellow-400" />
-                <h1 className="text-2xl mb-2 tracking-tighter">Доступ ограничен</h1>
-                <p className="text-slate-400 text-xs lowercase">Режим тестирования</p>
-              </div>
-            );
-          }
-
           return (
             <div className="min-h-screen flex flex-col items-center select-none font-sans overflow-hidden text-slate-900 bg-[#F9FBF9]">
               {modal.show && (
@@ -296,7 +278,6 @@
                       <div className="text-8xl font-black tracking-tighter text-slate-900 drop-shadow-sm">{Math.floor(points).toLocaleString()}</div>
                     </div>
                     
-                    {/* ТВОЙ БАЗИЛИК (УВЕЛИЧЕННЫЙ) */}
                     <BasilImage 
                         onClick={handleHarvestManual} 
                         isLocked={!canHarvest} 
@@ -359,7 +340,7 @@
                       <p className="text-base text-slate-400 mt-3 relative z-10 font-bold tracking-widest uppercase">Приз: 150 USDC за 1 место</p>
                       <Icon name="sparkles" size={180} className="absolute -right-12 -top-12 text-white/5 rotate-12" />
                     </div>
-                    <div className="bg-white rounded-[48px] shadow-sm border-2 border-slate-50 overflow-hidden">
+                    <div className="bg-white rounded-[48px] shadow-sm border-2 border-slate-100 overflow-hidden">
                       {leaders.map((l, i) => (
                         <div key={i} className={`flex justify-between p-8 border-b border-slate-50 last:border-0 items-center ${l.isKing ? 'bg-yellow-50/40' : ''}`}>
                            <div className="flex flex-col">
