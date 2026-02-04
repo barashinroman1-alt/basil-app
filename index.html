@@ -18,9 +18,11 @@
     <script type="module">
         import { createWeb3Modal, defaultWagmiConfig } from 'https://esm.sh/@web3modal/wagmi'
         import { mainnet, base } from 'https://esm.sh/@wagmi/core/chains'
-        import { reconnect, watchAccount, getAccount } from 'https://esm.sh/@wagmi/core'
+        import { reconnect, watchAccount, getAccount, disconnect } from 'https://esm.sh/@wagmi/core'
 
+        // Ваш Project ID из WalletConnect
         const projectId = '353fba8f0fe5aa0112595912f7ade9b4';
+
         const metadata = {
             name: 'Base Like',
             description: 'Basil Farmer Game',
@@ -39,12 +41,13 @@
         window.configWagmi = config;
     </script>
 
-    <!-- React, Tailwind & Lucide -->
+    <!-- React, Tailwind & Lucide React -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Используем специальную версию Lucide для React -->
+    <script src="https://unpkg.com/lucide-react"></script>
     
     <style>
         @keyframes leaf-float {
@@ -64,7 +67,7 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
 
-        // --- ТВОИ ПЕРСОНАЛЬНЫЕ КЛЮЧИ FIREBASE ---
+        // --- ВАШИ ПЕРСОНАЛЬНЫЕ КЛЮЧИ FIREBASE ---
         const firebaseConfig = {
             apiKey: "AIzaSyC6Z4GKCna_zTSaSzZNz1nmzPlRAYFKmUw",
             authDomain: "baselike-2c62f.firebaseapp.com",
@@ -78,14 +81,17 @@
         if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
         const auth = firebase.auth();
-        const appId = 'basil-live-final-v5';
+        const appId = 'basil-live-production-v6';
 
+        // ИСПРАВЛЕННЫЙ КОМПОНЕНТ ИКОНОК
         const Icon = ({ name, size = 24, className = "", color = "currentColor", strokeWidth = 2 }) => {
-          const icon = lucide.icons[name.toLowerCase().replace(/ /g, '-')];
-          if (!icon) return null;
-          return (
-            <span className={`inline-flex items-center justify-center ${className}`} style={{ width: size, height: size, color: color }} dangerouslySetInnerHTML={{ __html: icon.toSvg({ width: size, height: size, 'stroke-width': strokeWidth, stroke: 'currentColor', fill: 'none' }) }} />
-          );
+          // Превращаем kebab-case (shopping-cart) в PascalCase (ShoppingCart)
+          const pascalName = name.split('-').map(part => part.charAt(0).toUpperCase() + part.slice(1)).join('');
+          const IconComponent = window.lucideReact ? window.lucideReact[pascalName] : null;
+
+          if (!IconComponent) return <div style={{ width: size, height: size }} className={className} />;
+
+          return <IconComponent size={size} color={color} strokeWidth={strokeWidth} className={className} />;
         };
 
         const App = () => {
@@ -96,8 +102,6 @@
           const [isKing, setIsKing] = useState(() => localStorage.getItem('basil_is_king') === 'true');
           const [multiplier, setMultiplier] = useState(() => Number(localStorage.getItem('basil_multiplier')) || 1);
           
-          const [resetCount, setResetCount] = useState(() => Number(localStorage.getItem('basil_reset_count')) || 0);
-          const [lastResetDay, setLastResetDay] = useState(() => localStorage.getItem('basil_last_reset_day') || "");
           const [elixirExpire, setElixirExpire] = useState(() => Number(localStorage.getItem('basil_elixir_exp')) || 0);
           const [gardenerExpire, setGardenerExpire] = useState(() => Number(localStorage.getItem('basil_gardener_exp')) || 0);
           const [lastClickTime, setLastClickTime] = useState(() => Number(localStorage.getItem('basil_last_click')) || 0);
@@ -113,9 +117,9 @@
 
           const isElixirActive = elixirExpire > currentTime;
           const isGardenerActive = gardenerExpire > currentTime;
-          const resetsToday = lastResetDay === new Date().toDateString() ? resetCount : 0;
+          const timeLeftMs = Math.max(0, (lastClickTime + 86400000) - currentTime);
+          const canHarvest = timeLeftMs === 0;
 
-          // Инициализация
           useEffect(() => {
             const init = async () => {
               try { await auth.signInAnonymously(); setIsAuthed(true); } catch (e) { console.error(e); }
@@ -130,7 +134,6 @@
             }
           }, []);
 
-          // Облачный Топ
           useEffect(() => {
             if (!isAuthed) return;
             const leaderboardRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('leaderboard');
@@ -168,10 +171,6 @@
 
             return () => { unsubscribe(); clearInterval(interval); clearInterval(wInterval); };
           }, [isAuthed, tgUser, points, isKing, isSupporter, walletAddress, activeTab]);
-
-          // Таймеры и доход
-          const timeLeftMs = Math.max(0, (lastClickTime + 86400000) - currentTime);
-          const canHarvest = timeLeftMs === 0;
 
           useEffect(() => {
             const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
@@ -304,7 +303,7 @@
                         <div key={i.id} className="bg-white border-2 border-slate-50 p-6 rounded-[40px] flex flex-col gap-5 shadow-sm">
                             <div className="flex items-center gap-5 text-left">
                                 <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center shadow-inner"><Icon name={i.icon} size={32} color={i.color} /></div>
-                                <div><h4 className="font-black text-xl uppercase tracking-tighter">{i.t}</h4><p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest">{i.d}</p></div>
+                                <div><h4 className="font-black text-xl uppercase tracking-tight">{i.t}</h4><p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest">{i.d}</p></div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <button onClick={() => handlePurchase(i.id, 'leaf')} className="bg-green-50 text-green-700 py-5 rounded-[24px] text-base font-black border-b-4 border-green-200 active:translate-y-1">{i.l} 🌿</button>
