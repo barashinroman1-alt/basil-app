@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Base Like Game</title>
+    <title>Base Game</title>
     
-    <!-- Firebase SDK (v8 compat) -->
+    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
@@ -13,19 +13,17 @@
     <!-- Telegram SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     
-    <!-- Библиотеки кошельков (AppKit) -->
+    <!-- Web3 Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/index.umd.min.js"></script>
     <script type="module">
         import { createWeb3Modal, defaultWagmiConfig } from 'https://esm.sh/@web3modal/wagmi'
         import { mainnet, base } from 'https://esm.sh/@wagmi/core/chains'
         import { reconnect, watchAccount, getAccount, disconnect } from 'https://esm.sh/@wagmi/core'
 
-        // Ваш Project ID из WalletConnect
         const projectId = '353fba8f0fe5aa0112595912f7ade9b4';
-
         const metadata = {
-            name: 'Base Like',
-            description: 'Basil Farmer Game',
+            name: 'Base',
+            description: 'The Ultimate Basil Game',
             url: window.location.origin,
             icons: ['https://avatars.githubusercontent.com/u/37784886']
         }
@@ -41,33 +39,33 @@
         window.configWagmi = config;
     </script>
 
-    <!-- React, Tailwind & Lucide React -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Используем специальную версию Lucide для React -->
     <script src="https://unpkg.com/lucide-react"></script>
     
     <style>
         @keyframes leaf-float {
-            0% { transform: translateY(0) rotate(0deg) scale(1.5); opacity: 1; }
-            100% { transform: translateY(-120px) rotate(90deg) scale(0); opacity: 0; }
+            0% { transform: translateY(0) rotate(0deg) scale(1.2); opacity: 1; }
+            100% { transform: translateY(-80px) rotate(45deg) scale(0); opacity: 0; }
         }
-        .animate-leaf-float { animation: leaf-float 0.8s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards; }
-        .scale-in-center { animation: scale-in-center 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
-        @keyframes scale-in-center { 0% { transform: scale(0); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+        .animate-leaf-float { animation: leaf-float 0.6s ease-out forwards; }
         * { -webkit-tap-highlight-color: transparent; user-select: none; }
-        body { touch-action: manipulation; }
+        body, html { height: 100%; overflow: hidden; position: fixed; width: 100%; }
+        #root { height: 100%; }
     </style>
 </head>
 <body class="bg-[#F9FBF9]">
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
+        const { useState, useEffect, useMemo, useRef } = React;
 
-        // --- ВАШИ ПЕРСОНАЛЬНЫЕ КЛЮЧИ FIREBASE ---
+        // --- CONFIG ---
+        const MY_WALLET_ADDRESS = "0x0000000000000000000000000000000000000000"; // ЗАМЕНИ НА СВОЙ
+        const USDC_BASE_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+
         const firebaseConfig = {
             apiKey: "AIzaSyC6Z4GKCna_zTSaSzZNz1nmzPlRAYFKmUw",
             authDomain: "baselike-2c62f.firebaseapp.com",
@@ -81,30 +79,23 @@
         if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
         const auth = firebase.auth();
-        const appId = 'basil-live-production-v6';
+        const appId = 'base-game-v1';
 
-        // ИСПРАВЛЕННЫЙ КОМПОНЕНТ ИКОНОК
-        const Icon = ({ name, size = 24, className = "", color = "currentColor", strokeWidth = 2 }) => {
-          // Превращаем kebab-case (shopping-cart) в PascalCase (ShoppingCart)
+        const Icon = ({ name, size = 20, className = "", color = "currentColor" }) => {
           const pascalName = name.split('-').map(part => part.charAt(0).toUpperCase() + part.slice(1)).join('');
           const IconComponent = window.lucideReact ? window.lucideReact[pascalName] : null;
-
-          if (!IconComponent) return <div style={{ width: size, height: size }} className={className} />;
-
-          return <IconComponent size={size} color={color} strokeWidth={strokeWidth} className={className} />;
+          return IconComponent ? <IconComponent size={size} color={color} className={className} /> : null;
         };
 
         const App = () => {
-          const [points, setPoints] = useState(() => Number(localStorage.getItem('basil_points')) || 0);
-          const [dailyRate, setDailyRate] = useState(() => Number(localStorage.getItem('basil_daily_rate')) || 1);
-          const [autoWaterLevel, setAutoWaterLevel] = useState(() => Number(localStorage.getItem('basil_water_lvl')) || 0);
-          const [isSupporter, setIsSupporter] = useState(() => localStorage.getItem('basil_is_supporter') === 'true');
-          const [isKing, setIsKing] = useState(() => localStorage.getItem('basil_is_king') === 'true');
-          const [multiplier, setMultiplier] = useState(() => Number(localStorage.getItem('basil_multiplier')) || 1);
-          
-          const [elixirExpire, setElixirExpire] = useState(() => Number(localStorage.getItem('basil_elixir_exp')) || 0);
-          const [gardenerExpire, setGardenerExpire] = useState(() => Number(localStorage.getItem('basil_gardener_exp')) || 0);
-          const [lastClickTime, setLastClickTime] = useState(() => Number(localStorage.getItem('basil_last_click')) || 0);
+          const [points, setPoints] = useState(() => Number(localStorage.getItem('b_p')) || 0);
+          const [dailyRate, setDailyRate] = useState(() => Number(localStorage.getItem('b_dr')) || 1);
+          const [autoWaterLevel, setAutoWaterLevel] = useState(() => Number(localStorage.getItem('b_wl')) || 0);
+          const [isKing, setIsKing] = useState(() => localStorage.getItem('b_k') === 'true');
+          const [multiplier, setMultiplier] = useState(() => Number(localStorage.getItem('b_m')) || 1);
+          const [lastClickTime, setLastClickTime] = useState(() => Number(localStorage.getItem('b_lc')) || 0);
+          const [elixirExpire, setElixirExpire] = useState(() => Number(localStorage.getItem('b_ee')) || 0);
+          const [gardenerExpire, setGardenerExpire] = useState(() => Number(localStorage.getItem('b_ge')) || 0);
           const [currentTime, setCurrentTime] = useState(Date.now());
           
           const [activeTab, setActiveTab] = useState('game');
@@ -112,21 +103,18 @@
           const [modal, setModal] = useState({ show: false, title: '', message: '', type: 'info', onConfirm: null });
           const [tgUser, setTgUser] = useState(null);
           const [walletAddress, setWalletAddress] = useState(null);
-          const [isAuthed, setIsAuthed] = useState(false);
           const [realLeaders, setRealLeaders] = useState([]);
+          const [isPendingTx, setIsPendingTx] = useState(false);
 
           const isElixirActive = elixirExpire > currentTime;
           const isGardenerActive = gardenerExpire > currentTime;
           const timeLeftMs = Math.max(0, (lastClickTime + 86400000) - currentTime);
           const canHarvest = timeLeftMs === 0;
 
+          // Инициализация
           useEffect(() => {
-            const init = async () => {
-              try { await auth.signInAnonymously(); setIsAuthed(true); } catch (e) { console.error(e); }
-            };
-            init();
-
-            if (window.Telegram && window.Telegram.WebApp) {
+            auth.signInAnonymously().catch(console.error);
+            if (window.Telegram?.WebApp) {
               const webapp = window.Telegram.WebApp;
               webapp.ready();
               webapp.expand();
@@ -134,234 +122,252 @@
             }
           }, []);
 
+          // Облачный Топ (Firebase)
           useEffect(() => {
-            if (!isAuthed) return;
             const leaderboardRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('leaderboard');
-
             const unsubscribe = leaderboardRef.onSnapshot((snapshot) => {
               const players = [];
               snapshot.forEach(doc => players.push(doc.data()));
-              setRealLeaders(players.sort((a, b) => b.points - a.points));
+              setRealLeaders(players.sort((a, b) => b.points - a.points).slice(0, 50));
             });
 
-            const syncMyData = async () => {
+            const sync = async () => {
               if (tgUser) {
                 await leaderboardRef.doc(tgUser.id.toString()).set({
                   id: tgUser.id,
-                  name: tgUser.first_name || "Фермер",
+                  name: tgUser.first_name || "User",
                   points: Math.floor(points),
-                  isKing: isKing,
-                  isVip: isSupporter,
+                  isKing,
                   address: walletAddress || ""
                 }, { merge: true });
               }
             };
-
-            const interval = setInterval(syncMyData, 20000);
-            if (activeTab === 'leaderboard') syncMyData();
-
-            const wInterval = setInterval(() => {
-              if (window.watchWalletAccount && window.configWagmi) {
-                clearInterval(wInterval);
-                window.watchWalletAccount(window.configWagmi, { onChange: (a) => setWalletAddress(a.address || null) });
-                const current = window.getWalletAccount(window.configWagmi);
-                if (current?.address) setWalletAddress(current.address);
-              }
-            }, 1000);
-
-            return () => { unsubscribe(); clearInterval(interval); clearInterval(wInterval); };
-          }, [isAuthed, tgUser, points, isKing, isSupporter, walletAddress, activeTab]);
+            const syncInterval = setInterval(sync, 45000); // Реже для оптимизации нагрузки
+            return () => { unsubscribe(); clearInterval(syncInterval); };
+          }, [tgUser, points, isKing, walletAddress]);
 
           useEffect(() => {
             const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
-            return () => clearInterval(timer);
+            const wTimer = setInterval(() => {
+                if (window.getWalletAccount) {
+                    const acc = window.getWalletAccount(window.configWagmi);
+                    setWalletAddress(acc?.address || null);
+                }
+            }, 2000);
+            return () => { clearInterval(timer); clearInterval(wTimer); };
           }, []);
 
+          // Пассивный доход
           useEffect(() => {
             const totalDaily = (dailyRate + (autoWaterLevel * 2)) * multiplier * (isKing ? 1.5 : 1) * (isElixirActive ? 2 : 1);
             const interval = setInterval(() => setPoints(p => p + (totalDaily / 86400)), 1000);
             return () => clearInterval(interval);
           }, [dailyRate, autoWaterLevel, multiplier, isKing, isElixirActive]);
 
+          // Авто-садовник
           useEffect(() => {
             if (isGardenerActive && canHarvest) performHarvest(false);
           }, [currentTime, isGardenerActive, canHarvest]);
 
           useEffect(() => {
-            const data = { basil_points: points, basil_daily_rate: dailyRate, basil_water_lvl: autoWaterLevel, basil_last_click: lastClickTime, basil_is_supporter: isSupporter, basil_is_king: isKing, basil_multiplier: multiplier, basil_elixir_exp: elixirExpire, basil_gardener_exp: gardenerExpire };
-            Object.entries(data).forEach(([k, v]) => localStorage.setItem(k, v.toString()));
-          }, [points, dailyRate, autoWaterLevel, lastClickTime, isSupporter, isKing, multiplier, elixirExpire, gardenerExpire]);
+            localStorage.setItem('b_p', points);
+            localStorage.setItem('b_dr', dailyRate);
+            localStorage.setItem('b_wl', autoWaterLevel);
+            localStorage.setItem('b_lc', lastClickTime);
+            localStorage.setItem('b_k', isKing);
+            localStorage.setItem('b_m', multiplier);
+            localStorage.setItem('b_ee', elixirExpire);
+            localStorage.setItem('b_ge', gardenerExpire);
+          }, [points, dailyRate, autoWaterLevel, lastClickTime, isKing, multiplier, elixirExpire, gardenerExpire]);
 
           const performHarvest = (isManual, e = null) => {
             const reward = (dailyRate + (autoWaterLevel * 2)) * multiplier * (isKing ? 1.5 : 1) * (isElixirActive ? 2 : 1);
             setPoints(p => p + reward);
             setLastClickTime(Date.now());
             const id = Date.now();
-            setParticles(prev => [...prev, { id, x: e?.clientX || window.innerWidth/2, y: e?.clientY || window.innerHeight/2, angle: Math.random()*360 }]);
-            setTimeout(() => setParticles(ps => ps.filter(p => p.id !== id)), 800);
+            setParticles(prev => [...prev, { id, x: e?.clientX || window.innerWidth/2, y: e?.clientY || window.innerHeight/2 }]);
+            setTimeout(() => setParticles(ps => ps.filter(p => p.id !== id)), 600);
             if (isManual && window.Telegram?.WebApp) window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
           };
 
           const handlePurchase = async (type, mode) => {
             const catalog = {
-              fertilizer: { leaf: 50, donor: 0.5, title: 'Золотое удобрение' },
-              elixir: { leaf: 30, donor: 0.2, title: 'Эликсир Скорости' },
-              gardener: { leaf: 40, donor: 0.25, title: 'Авто-садовник' },
-              king: { leaf: null, donor: 1.0, title: 'Король Фермеров' },
-              reset: { donor: 0.3, title: 'Сброс таймера' }
+              fertilizer: { leaf: 50, donor: 0.5, title: 'Удобрение' },
+              elixir: { leaf: 30, donor: 0.2, title: 'Эликсир' },
+              gardener: { leaf: 40, donor: 0.25, title: 'Садовник' },
+              king: { leaf: null, donor: 1.0, title: 'King' },
+              reset: { donor: 0.3, title: 'Сброс' }
             };
             const item = catalog[type];
             const cost = mode === 'leaf' ? item.leaf : item.donor;
-            if (mode === 'donor' && !walletAddress) return setModal({ show: true, title: 'Wallet!', message: 'Сначала подключи кошелек.', type: 'info' });
+            
+            if (mode === 'donor' && !walletAddress) return setModal({ show: true, title: 'Wallet!', message: 'Подключи кошелек.', type: 'info' });
             if (mode === 'leaf' && (item.leaf === null || points < cost)) return setModal({ show: true, title: 'Мало 🌿', message: 'Нужно больше листьев!', type: 'info' });
 
-            setModal({ show: true, title: 'Покупка', message: `Купить "${item.title}"?`, type: 'confirm', onConfirm: () => {
-              if (mode === 'leaf') setPoints(p => p - cost);
-              if (mode === 'donor') setIsSupporter(true);
-              if (type === 'fertilizer') setDailyRate(r => r + 1);
-              if (type === 'elixir') setElixirExpire(Date.now() + (3 * 86400000));
-              if (type === 'gardener') setGardenerExpire(Date.now() + (7 * 86400000));
-              if (type === 'king') setIsKing(true);
-              if (type === 'reset') setLastClickTime(0);
-              setModal({ show: false });
+            setModal({ show: true, title: 'Купить?', message: `${item.title} за ${cost} ${mode==='leaf'?'🌿':'USDC'}?`, type: 'confirm', onConfirm: async () => {
+              if (mode === 'leaf') {
+                setPoints(p => p - cost);
+                applyEffect(type);
+                setModal({ show: false });
+              } else {
+                const success = await executeCryptoPayment(cost);
+                if (success) { applyEffect(type); setModal({ show: true, title: 'Успех!', message: 'Буст активирован.', type: 'info' }); }
+              }
             }});
           };
 
+          const applyEffect = (t) => {
+            if (t === 'fertilizer') setDailyRate(r => r + 1);
+            if (t === 'elixir') setElixirExpire(Date.now() + (3 * 86400000));
+            if (t === 'gardener') setGardenerExpire(Date.now() + (7 * 86400000));
+            if (t === 'king') setIsKing(true);
+            if (t === 'reset') setLastClickTime(0);
+          };
+
+          const executeCryptoPayment = async (amt) => {
+            try {
+              setIsPendingTx(true);
+              const provider = new ethers.BrowserProvider(window.ethereum);
+              const signer = await provider.getSigner();
+              const abi = ["function transfer(address to, uint256 amount) public returns (bool)"];
+              const contract = new ethers.Contract(USDC_BASE_ADDRESS, abi, signer);
+              const tx = await contract.transfer(MY_WALLET_ADDRESS, ethers.parseUnits(amt.toString(), 6));
+              await tx.wait();
+              setIsPendingTx(false);
+              return true;
+            } catch (e) { setIsPendingTx(false); return false; }
+          };
+
           return (
-            <div className="min-h-screen flex flex-col items-center select-none font-sans overflow-hidden text-slate-900 bg-[#F9FBF9]">
+            <div className="h-full flex flex-col items-center overflow-hidden">
               {modal.show && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm text-center">
-                  <div className="bg-white rounded-[40px] p-8 w-full max-w-xs shadow-2xl scale-in-center border-4 border-slate-50">
-                    <h3 className="font-black text-xl mb-3 tracking-tighter uppercase">{modal.title}</h3>
-                    <p className="text-sm text-slate-500 mb-8 leading-snug">{modal.message}</p>
-                    <div className="flex flex-col gap-3">
-                      {modal.type === 'confirm' ? (
-                        <><button onClick={modal.onConfirm} className="w-full py-5 rounded-[24px] bg-blue-600 text-white font-black shadow-lg">ДА</button>
-                        <button onClick={() => setModal({ show: false })} className="w-full py-2 text-slate-400 font-bold text-xs uppercase">НЕТ</button></>
-                      ) : <button onClick={() => setModal({ show: false })} className="w-full py-5 rounded-[24px] bg-slate-900 text-white font-black uppercase">ОК</button>}
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm text-center">
+                  <div className="bg-white rounded-[24px] p-6 w-full max-w-xs shadow-2xl">
+                    <h3 className="font-black text-lg mb-2 uppercase">{modal.title}</h3>
+                    <p className="text-xs text-slate-500 mb-6">{modal.message}</p>
+                    <div className="flex flex-col gap-2">
+                      {isPendingTx ? <div className="py-2 animate-spin self-center"><Icon name="loader-2" size={32} /></div> : 
+                        (modal.type === 'confirm' ? (
+                          <><button onClick={modal.onConfirm} className="w-full py-4 rounded-xl bg-blue-600 text-white font-black uppercase text-xs">ДА</button>
+                          <button onClick={() => setModal({ show: false })} className="w-full py-2 text-slate-400 font-bold text-[10px]">НЕТ</button></>
+                        ) : <button onClick={() => setModal({ show: false })} className="w-full py-4 rounded-xl bg-slate-900 text-white font-black uppercase text-xs">ОК</button>)
+                      }
                     </div>
                   </div>
                 </div>
               )}
 
-              <header className="w-full max-w-md bg-white border-b-2 p-5 flex justify-between items-center sticky top-0 z-50">
-                <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-1 font-black text-2xl tracking-tighter shrink-0">
-                        <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm shadow-md">B</div>
-                        <span>Base Like</span>
-                    </div>
-                    <button onClick={() => window.openConnectModal()} className={`text-[10px] font-black px-4 py-2.5 rounded-2xl border-b-4 active:border-b-0 active:translate-y-1 transition-all shadow-md ${walletAddress ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-blue-600 text-white border-blue-800'}`}>
-                        {walletAddress ? `${walletAddress.substring(0,4)}...${walletAddress.substring(38)}` : 'WALLET'}
+              {/* Header - Компактный */}
+              <header className="w-full max-w-md bg-white/80 backdrop-blur-md border-b p-3 flex justify-between items-center sticky top-0 z-40">
+                <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white text-xs font-black shadow-sm">B</div>
+                    <span className="font-black text-lg tracking-tighter">Base</span>
+                    <button onClick={() => window.openConnectModal()} className={`text-[9px] font-black px-3 py-1.5 rounded-full border transition-all ${walletAddress ? 'bg-blue-50 text-blue-600' : 'bg-blue-600 text-white'}`}>
+                        {walletAddress ? `${walletAddress.substring(0,4)}...` : 'WALLET'}
                     </button>
                 </div>
-                <div className="bg-green-100 px-3 py-2 rounded-2xl border border-green-200 flex items-center gap-2">
-                   <Icon name="leaf" size={18} className="text-green-600" />
-                   <span className="text-base font-black text-green-800">{Math.floor(points)}</span>
+                <div className="bg-green-50 px-3 py-1 rounded-full flex items-center gap-1.5 border border-green-100">
+                   <Icon name="leaf" size={14} className="text-green-600" />
+                   <span className="text-sm font-black text-green-800">{Math.floor(points)}</span>
                 </div>
               </header>
 
-              <main className="flex-1 w-full max-w-md flex flex-col overflow-y-auto pb-24 text-center bg-white">
+              <main className="flex-1 w-full max-w-md flex flex-col justify-between py-2 overflow-hidden">
                 {activeTab === 'game' && (
-                  <div className="pt-10 px-6 flex flex-col items-center">
-                    <div className="relative mb-6">
-                      {isKing && <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-yellow-400 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase shadow-sm border-2 border-white">King</div>}
-                      <div className="text-8xl font-black tracking-tighter text-slate-900 drop-shadow-sm">{Math.floor(points).toLocaleString()}</div>
+                  <div className="flex-1 flex flex-col justify-around items-center px-4">
+                    <div className="text-center">
+                        <div className="text-6xl font-black tracking-tighter text-slate-900 mb-1">{Math.floor(points).toLocaleString()}</div>
+                        {isKing && <div className="bg-yellow-400 text-white px-2 py-0.5 rounded-full text-[8px] font-black uppercase inline-block">King Mode x1.5</div>}
                     </div>
                     
-                    <div className="relative mx-auto w-[340px] h-[340px] flex items-center justify-center mt-2">
-                        <div className={`absolute inset-0 rounded-full blur-[110px] transition-all duration-1000 ${canHarvest ? 'bg-green-400/40' : 'bg-blue-400/20'}`}></div>
-                        <img src="basil.png" alt="Basil" onClick={() => performHarvest(true)} className={`relative z-10 w-[310px] h-[310px] object-contain transition-all duration-150 active:scale-90 ${canHarvest && !isGardenerActive ? 'cursor-pointer hover:scale-105' : 'grayscale-[0.2] opacity-70'}`} onError={(e) => e.target.src = 'https://cdn-icons-png.flaticon.com/512/888/888063.png'} />
-                        {isGardenerActive && <div className="absolute top-4 right-4 z-30 bg-blue-600 text-white p-4 rounded-full border-4 border-white shadow-xl animate-bounce"><Icon name="bot" size={28} /></div>}
+                    <div className="relative flex items-center justify-center">
+                        <div className={`absolute inset-0 rounded-full blur-[60px] transition-all duration-1000 ${canHarvest ? 'bg-green-400/30' : 'bg-blue-400/10'}`}></div>
+                        <img src="basil.png" alt="Basil" onClick={() => canHarvest && performHarvest(true)} className={`w-[220px] h-[220px] object-contain transition-all duration-75 active:scale-90 ${canHarvest && !isGardenerActive ? 'cursor-pointer' : 'grayscale-[0.3] opacity-60'}`} onError={(e) => e.target.src = 'https://cdn-icons-png.flaticon.com/512/888/888063.png'} />
+                        {isGardenerActive && <div className="absolute top-2 right-2 bg-blue-600 text-white p-2 rounded-full border-2 border-white animate-bounce shadow-lg"><Icon name="bot" size={20} /></div>}
+                        {!canHarvest && !isGardenerActive && <div className="absolute inset-0 flex items-center justify-center"><Icon name="clock" size={48} className="text-blue-500/50" /></div>}
                     </div>
 
-                    {canHarvest && !isGardenerActive ? (
-                      <button onClick={(e) => performHarvest(true, e)} className="mt-8 w-full max-w-[260px] bg-green-500 text-white font-black py-7 rounded-[40px] shadow-xl animate-bounce text-xl uppercase tracking-widest">СОБРАТЬ 🌿</button>
-                    ) : (
-                      <div className="space-y-6 w-full max-w-[280px] mt-8 flex flex-col items-center">
-                          <div className="bg-white border-2 border-slate-100 p-6 rounded-[40px] shadow-sm w-full">
-                              <p className="text-[12px] font-black text-slate-400 uppercase tracking-widest mb-2 font-black font-sans">{isGardenerActive ? 'Садовник на смене' : 'Базилик зреет'}</p>
-                              <div className="text-5xl font-mono font-black text-blue-600 tracking-tight">
-                                  {Math.floor(timeLeftMs/3600000)}:{Math.floor((timeLeftMs%3600000)/60000).toString().padStart(2,'0')}:{Math.floor((timeLeftMs%60000)/1000).toString().padStart(2,'0')}
+                    <div className="w-full max-w-[280px] flex flex-col gap-2">
+                        {canHarvest && !isGardenerActive ? (
+                          <button onClick={(e) => performHarvest(true, e)} className="w-full bg-green-500 text-white font-black py-5 rounded-2xl shadow-lg animate-pulse text-lg uppercase">СОБРАТЬ 🌿</button>
+                        ) : (
+                          <div className="flex flex-col gap-2 w-full">
+                              <div className="bg-white border p-3 rounded-2xl text-center">
+                                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{isGardenerActive ? 'Авто-садовник на смене' : 'Базилик созревает'}</p>
+                                  <div className="text-3xl font-mono font-black text-blue-600 tracking-tighter">
+                                      {Math.floor(timeLeftMs/3600000)}:{Math.floor((timeLeftMs%3600000)/60000).toString().padStart(2,'0')}:{Math.floor((timeLeftMs%60000)/1000).toString().padStart(2,'0')}
+                                  </div>
                               </div>
+                              <button onClick={() => handlePurchase('reset', 'donor')} className="w-full py-3 rounded-xl border-b-2 bg-blue-50 text-blue-600 border-blue-200 text-[10px] font-black uppercase flex items-center justify-center gap-2">
+                                  <Icon name="zap" size={14} /> Сбросить таймер ($0.30)
+                              </button>
                           </div>
-                          <button onClick={() => handlePurchase('reset', 'donor')} className="w-full py-5 rounded-[28px] border-b-4 font-black flex items-center justify-center gap-3 transition-all uppercase text-xs tracking-widest bg-blue-50 text-blue-600 border-blue-200 active:translate-y-1">
-                              <Icon name="zap" size={18} /> Сброс таймера ($0.30)
-                          </button>
-                      </div>
-                    )}
+                        )}
+                    </div>
                   </div>
                 )}
 
                 {activeTab === 'shop' && (
-                  <div className="p-6 space-y-5 text-left">
-                    <h2 className="text-3xl font-black mb-6 flex items-center gap-3 tracking-tighter uppercase text-red-500 font-sans"><Icon name="shopping-cart" size={28} /> Маркет</h2>
-                    {[
-                        { id: 'fertilizer', icon: "star", color: "#eab308", t: 'Золотое удобрение', d: '+1 🌿/сут навсегда.', l: 50, c: 0.5 },
-                        { id: 'elixir', icon: "zap", color: "#a855f7", t: 'Эликсир Скорости', d: 'x2 доход (3 дня).', l: 30, c: 0.2 },
-                        { id: 'gardener', icon: "bot", color: "#3b82f6", t: 'Авто-садовник', d: 'Авто-сбор (1 неделя).', l: 40, c: 0.25 }
+                  <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2">
+                    <h2 className="text-xl font-black uppercase mb-3 text-red-500 px-2 flex items-center gap-2"><Icon name="shopping-cart" /> Маркет</h2>
+                    {[{ id:'fertilizer', t:'Удобрение', d:'+1 🌿/сут навсегда', l:50, c:0.5, i:'star' },
+                      { id:'elixir', t:'Эликсир', d:'x2 доход (3 дня)', l:30, c:0.2, i:'zap' },
+                      { id:'gardener', t:'Садовник', d:'Авто-сбор (1 неделя)', l:40, c:0.25, i:'bot' }
                     ].map(i => (
-                        <div key={i.id} className="bg-white border-2 border-slate-50 p-6 rounded-[40px] flex flex-col gap-5 shadow-sm">
-                            <div className="flex items-center gap-5 text-left">
-                                <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center shadow-inner"><Icon name={i.icon} size={32} color={i.color} /></div>
-                                <div><h4 className="font-black text-xl uppercase tracking-tight">{i.t}</h4><p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest">{i.d}</p></div>
+                        <div key={i.id} className="bg-white border border-slate-100 p-3 rounded-2xl flex items-center justify-between gap-3 shadow-sm">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center"><Icon name={i.i} size={20} color="#3b82f6" /></div>
+                                <div><h4 className="font-black text-xs uppercase">{i.t}</h4><p className="text-[9px] text-slate-400 font-bold">{i.d}</p></div>
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <button onClick={() => handlePurchase(i.id, 'leaf')} className="bg-green-50 text-green-700 py-5 rounded-[24px] text-base font-black border-b-4 border-green-200 active:translate-y-1">{i.l} 🌿</button>
-                                <button onClick={() => handlePurchase(i.id, 'donor')} className="bg-blue-50 text-blue-700 py-5 rounded-[24px] text-base font-black border-b-4 border-blue-200 active:translate-y-1">${i.c.toFixed(2)}</button>
+                            <div className="flex flex-col gap-1">
+                                <button onClick={() => handlePurchase(i.id, 'leaf')} className="bg-green-50 text-green-700 px-3 py-1.5 rounded-lg text-[10px] font-black">{i.l} 🌿</button>
+                                <button onClick={() => handlePurchase(i.id, 'donor')} className="bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg text-[10px] font-black">${i.c}</button>
                             </div>
                         </div>
                     ))}
+                    <div className="bg-gradient-to-r from-yellow-400 to-orange-500 p-4 rounded-2xl text-white shadow-lg">
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <h3 className="font-black text-xs uppercase italic flex items-center gap-1"><Icon name="crown" size={14}/> King Mode</h3>
+                                <p className="text-[9px] font-bold opacity-90">x1.5 доход навсегда</p>
+                            </div>
+                            <button onClick={() => handlePurchase('king', 'donor')} className="bg-white text-orange-600 px-4 py-2 rounded-xl font-black text-[10px] uppercase shadow-md">BUY $1</button>
+                        </div>
+                    </div>
                   </div>
                 )}
                 
                 {activeTab === 'leaderboard' && (
-                  <div className="p-6 text-left font-sans">
-                    <div className="bg-slate-900 rounded-[48px] p-10 text-white mb-10 relative overflow-hidden shadow-2xl">
-                      <h2 className="text-3xl font-black uppercase tracking-tighter flex items-center gap-3"><Icon name="trophy" size={32} color="#fbbf24" /> Глобальный Топ</h2>
-                      <div className="mt-6 flex gap-3">
-                        <div className="bg-white/10 p-4 rounded-3xl flex-1 text-center border border-white/10 backdrop-blur-md">
-                            <p className="text-[10px] text-slate-400 font-black uppercase mb-1 tracking-widest">Игроков</p>
-                            <p className="text-3xl font-black text-blue-400">{realLeaders.length}</p>
-                        </div>
-                        <div className="bg-white/10 p-4 rounded-3xl flex-1 text-center border border-white/5 backdrop-blur-md">
-                            <p className="text-[10px] text-slate-400 font-black uppercase mb-1 tracking-widest font-sans">Приз #1</p>
-                            <p className="text-3xl font-black text-yellow-400">150 $</p>
-                        </div>
-                      </div>
+                  <div className="flex-1 overflow-y-auto px-4 py-2">
+                    <div className="bg-slate-900 rounded-2xl p-4 text-white mb-3 flex items-center justify-between shadow-xl">
+                      <div><h2 className="text-sm font-black uppercase italic tracking-wider text-yellow-400">The Top</h2><p className="text-[9px] opacity-60">Total Farmers: {realLeaders.length}</p></div>
+                      <div className="text-right"><p className="text-[8px] opacity-60 uppercase font-black">Prize Pool</p><p className="text-lg font-black text-green-400">150 $</p></div>
                     </div>
-                    
-                    <div className="bg-white rounded-[40px] shadow-sm border-2 border-slate-50 overflow-hidden mb-8">
-                      {realLeaders.length > 0 ? realLeaders.map((l, i) => (
-                        <div key={i} className={`flex justify-between p-6 border-b border-slate-50 last:border-0 items-center ${l.id === tgUser?.id ? 'bg-blue-50/50' : (l.isKing ? 'bg-yellow-50/40' : '')}`}>
-                           <div className="flex flex-col">
-                             <div className="flex items-center gap-2">
-                                <span className={`font-black text-xl ${l.isKing ? 'text-yellow-700' : 'text-slate-800'}`}>
-                                    {i+1}. {l.name}
-                                </span>
-                                {l.isKing && <Icon name="crown" size={16} color="#eab308" />}
-                                {l.id === tgUser?.id && <span className="text-[8px] bg-blue-600 text-white px-1.5 rounded uppercase font-black">Ты</span>}
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                      {realLeaders.map((l, i) => (
+                        <div key={i} className={`flex justify-between p-3 border-b last:border-0 items-center ${l.id === tgUser?.id ? 'bg-blue-50' : ''}`}>
+                           <div className="flex items-center gap-3">
+                             <span className="text-[10px] font-black text-slate-300 w-4">{i+1}</span>
+                             <div className="flex flex-col">
+                                <span className={`font-black text-xs ${l.isKing ? 'text-yellow-600' : 'text-slate-800'}`}>{l.name} {l.isKing && '👑'}</span>
+                                <span className="text-[9px] text-slate-400 font-bold">{Math.floor(l.points).toLocaleString()} 🌿</span>
                              </div>
-                             <span className="text-xs text-slate-500 font-black uppercase tracking-widest mt-1">{Math.floor(l.points).toLocaleString()} 🌿</span>
                            </div>
-                           <span className="font-black text-blue-600 bg-blue-50 px-5 py-2 rounded-2xl text-xs uppercase tracking-tighter shadow-inner">
-                                {i === 0 ? "🏆 Winner" : "Farmer"}
-                           </span>
+                           <span className="text-[9px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">FARMER</span>
                         </div>
-                      )) : (
-                        <div className="p-20 text-center text-slate-300 font-black uppercase animate-pulse">Загрузка игроков...</div>
-                      )}
+                      ))}
                     </div>
                   </div>
                 )}
               </main>
 
-              <nav className="fixed bottom-0 w-full max-w-md bg-white border-t-2 p-6 flex justify-around shadow-2xl backdrop-blur-xl z-50">
-                <button onClick={() => setActiveTab('game')} className={`flex flex-col items-center gap-1 transition-all ${activeTab==='game'?'text-blue-600 scale-125 font-black':'text-slate-300'}`}><Icon name="leaf" size={32}/><span className="text-[10px] font-black uppercase tracking-widest">Сбор</span></button>
-                <button onClick={() => setActiveTab('shop')} className={`flex flex-col items-center gap-1 transition-all ${activeTab==='shop'?'text-blue-600 scale-125 font-black':'text-slate-300'}`}><Icon name="shopping-cart" size={32}/><span className="text-[10px] font-black uppercase tracking-widest">Маркет</span></button>
-                <button onClick={() => setActiveTab('leaderboard')} className={`flex flex-col items-center gap-1 transition-all ${activeTab==='leaderboard'?'text-blue-600 scale-125 font-black':'text-slate-300'}`}><Icon name="trophy" size={32}/><span className="text-[10px] font-black uppercase tracking-widest font-sans">Топ</span></button>
+              <nav className="w-full max-w-md bg-white border-t pt-3 pb-10 px-3 flex justify-around shadow-[0_-10px_30px_rgba(0,0,0,0.02)] z-40">
+                <button onClick={() => setActiveTab('game')} className={`flex flex-col items-center gap-1 transition-all ${activeTab==='game'?'text-blue-600 scale-110 font-black':'text-slate-300'}`}><Icon name="leaf" size={24}/><span className="text-[9px] font-black uppercase">Игра</span></button>
+                <button onClick={() => setActiveTab('shop')} className={`flex flex-col items-center gap-1 transition-all ${activeTab==='shop'?'text-blue-600 scale-110 font-black':'text-slate-300'}`}><Icon name="shopping-cart" size={24}/><span className="text-[9px] font-black uppercase">Магазин</span></button>
+                <button onClick={() => setActiveTab('leaderboard')} className={`flex flex-col items-center gap-1 transition-all ${activeTab==='leaderboard'?'text-blue-600 scale-110 font-black':'text-slate-300'}`}><Icon name="trophy" size={24}/><span className="text-[9px] font-black uppercase tracking-tighter">Топ</span></button>
               </nav>
 
-              {particles.map(p => <div key={p.id} className="fixed pointer-events-none z-[60] text-6xl animate-leaf-float opacity-80" style={{ left: p.x - 30, top: p.y - 30 }}>🌿</div>)}
+              {particles.map(p => <div key={p.id} className="fixed pointer-events-none z-[60] text-4xl animate-leaf-float opacity-80" style={{ left: p.x - 20, top: p.y - 20 }}>🌿</div>)}
             </div>
           );
         };
